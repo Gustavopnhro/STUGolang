@@ -1,4 +1,4 @@
-module github.com/gustavopnhro/module-database/scenario-1
+module github.com/Gustavopnhro/STUGolang
 
 go 1.22.5
 
