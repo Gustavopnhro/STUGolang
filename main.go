@@ -2,19 +2,18 @@ package main
 
 import (
 	"database/sql"
-	"models"
 
+	"github.com/Gustavopnhro/STUGolang/models"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
-	"github.com/gustavopnhro/module-database/scenario-1/models"
 )
 
-func NewCustomer(name string, email string, phone string) *models.Product {
+func NewProduct(name string, price float64, stock int) *models.Product {
 	return &models.Product{
 		ID:    uuid.New().String(),
 		Name:  name,
-		Email: email,
-		Phone: phone,
+		Price: price,
+		Stock: stock,
 	}
 
 }
@@ -25,7 +24,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	alicio := NewCustomer("Alicio", "Alicio@gmail.com", "77889922")
+	alicio := NewProduct("Alicio", 12.66, 11)
 	err = insertCustomer(db, alicio)
 	if err != nil {
 		panic(err)
@@ -33,16 +32,16 @@ func main() {
 	defer db.Close()
 }
 
-func insertCustomer(db *sql.DB, customer *models.Product) error {
+func insertCustomer(db *sql.DB, product *models.Product) error {
 	statement, err := db.Prepare("insert into Customers(id, name, email, phone) values (?, ?, ?, ?)")
 	if err != nil {
 		panic(err)
 	}
 
 	defer statement.Close()
-	println(customer.ID)
+	println(product.ID)
 
-	_, err = statement.Exec(customer.ID, customer.Name, customer.Email, customer.Phone)
+	_, err = statement.Exec(product.ID, product.Name, product.Stock, product.Price)
 	if err != nil {
 		return err
 	}
