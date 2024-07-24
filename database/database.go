@@ -2,20 +2,17 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 )
 
 var db *sql.DB
 
-func connection() {
-
-	if err := godotenv.Load(); err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
-	}
-
+func Initialize() {
 	if err := godotenv.Load(); err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
@@ -30,13 +27,20 @@ func connection() {
 		log.Fatalf("Database configuration variables are not set")
 	}
 
-	db, err := sql.Open("mysql", user+":"+password+"@tcp("+host+":"+port+")/mysql")
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", user, password, host, port, dbName)
 
+	var err error
+	db, err = sql.Open("mysql", dsn)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Error connecting to database: %v", err)
 	}
 
-	defer db.Close()
+	err = db.Ping()
+	if err != nil {
+		log.Fatalf("Error pinging database: %v", err)
+	}
+
+	fmt.Println("Successfully connected to MySQL database")
 }
 
 func GetDB() *sql.DB {
