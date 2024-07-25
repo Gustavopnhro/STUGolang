@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,6 +11,30 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 )
+
+func main() {
+	var port string = ":8080"
+
+	database.Initialize()
+
+	http.HandleFunc("/items", handleItems)
+
+	http.ListenAndServe(port, nil)
+
+	fmt.Println("Rodando API na porta", port)
+}
+
+func handleItems(writer http.ResponseWriter, request *http.Request) {
+	switch request.Method {
+	case http.MethodGet:
+		searchProduct(writer, request)
+	case http.MethodPost:
+		createProduct(writer, request)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+		writer.Write([]byte("Método não permitido"))
+	}
+}
 
 func NewProduct(name string, price float64, stock int) *structs.Product {
 	return &structs.Product{
@@ -21,38 +46,72 @@ func NewProduct(name string, price float64, stock int) *structs.Product {
 
 }
 
-func main() {
-	var port string = ":8080"
-
-	database.Initialize()
-
-	http.HandleFunc("/buscar_produto", searchProduct)
-	http.HandleFunc("/items", createProduct)
-	http.ListenAndServe(port, nil)
-
-	fmt.Println("Rodando API na porta", port)
-
-}
-
 func searchProduct(writer http.ResponseWriter, request *http.Request) {
-	if request.URL.Path != "/buscar_produto" {
+	if request.URL.Path != "/items" {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	product_parameter := request.URL.Query().Get("id")
+	productName := request.URL.Query().Get("name")
 
-	if product_parameter == "" {
+	if productName == "" {
 		writer.WriteHeader(http.StatusBadRequest)
+		writer.Write([]byte("Nome do produto é necessário"))
+		return
+	}
+
+	db := database.GetDB()
+
+	statement, err := db.Prepare("SELECT id, name, price FROM Products WHERE name = ?")
+
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		writer.Write([]byte(fmt.Sprintf("Erro ao preparar a declaração SQL: %v", err)))
+		return
+	}
+	defer statement.Close()
+
+	rows, err := statement.Query(productName)
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		writer.Write([]byte(fmt.Sprintf("Erro ao executar a declaração SQL: %v", err)))
+		return
+	}
+	defer rows.Close()
+
+	var products []structs.Product
+
+	for rows.Next() {
+		var product structs.Product
+		err := rows.Scan(&product.ID, &product.Name, &product.Price)
+		if err != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			writer.Write([]byte(fmt.Sprintf("Erro ao escanear linha do resultado: %v", err)))
+			return
+		}
+		products = append(products, product)
+	}
+
+	if err := rows.Err(); err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		writer.Write([]byte(fmt.Sprintf("Erro ao iterar através do resultado: %v", err)))
+		return
+	}
+
+	productJSON, err := json.Marshal(products)
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		writer.Write([]byte(fmt.Sprintf("Erro ao converter produtos para JSON: %v", err)))
 		return
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(http.StatusOK)
-	writer.Write([]byte("Olá mundo"))
+	writer.Write(productJSON)
 }
 
 func createProduct(writer http.ResponseWriter, request *http.Request) {
+
 	if request.Method != http.MethodPost {
 		writer.WriteHeader(http.StatusMethodNotAllowed)
 		writer.Write([]byte("Not Allowed"))
@@ -109,6 +168,7 @@ func createProduct(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(http.StatusCreated)
 	writer.Write([]byte("Produto criado com sucesso"))
 }
